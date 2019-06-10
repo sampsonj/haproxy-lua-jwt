@@ -18,7 +18,9 @@ if not config then
         debug = true,
         publicKey = nil,
         issuer = nil,
-        audience = nil
+        audience = nil,
+        allowUrlParam = nil,
+        urlParamName = nil
     }
 end
 
@@ -34,6 +36,25 @@ local function log(msg)
     if config.debug then
         core.Debug(tostring(msg))
     end
+end
+
+local TRUE_VALS = {
+    ['true'] = true,
+    ['TRUE'] = true,
+    ['True'] = true
+}
+local function toboolean(str)
+    if str == nil then
+        return false
+    end
+
+    assert(type(str) == 'string', 'str must be string')
+
+    if TRUE_VALS[str] == true then
+        return true
+    end
+
+    return false
 end
 
 local function dump(o)
@@ -57,7 +78,7 @@ function readAll(file)
     return content
 end
 
-local function decodeJwt(authorizationHeader)
+local function decodeJwtAuthHeader(authorizationHeader)
     local headerFields = core.tokenize(authorizationHeader, " .")
 
     if #headerFields ~= 4 then
@@ -81,6 +102,37 @@ local function decodeJwt(authorizationHeader)
     token.signaturedecoded = base64.decode(token.signature)
 
     log('Authorization header: ' .. authorizationHeader)
+    log('Decoded JWT header: ' .. dump(token.headerdecoded))
+    log('Decoded JWT payload: ' .. dump(token.payloaddecoded))
+
+    return token
+end
+
+local function decodeJwtUrlParam(apiTokenParam)
+    if apiTokenParam == nil then
+      log("URL param API token not found.")
+      return nil
+    end
+
+    local jwtFields = core.tokenize(apiTokenParam, ".")
+
+    if jwtFields == nil or jwtFields[1] == nil 
+        or jwtFields[2] == nill or jwtFields[3] == nill then
+      log("Improperly formatted URL param API token.")
+      return nil
+    end
+
+    local token = {}
+    token.header = jwtFields[1]
+    token.headerdecoded = json.decode(base64.decode(token.header))
+
+    token.payload = jwtFields[2]
+    token.payloaddecoded = json.decode(base64.decode(token.payload))
+
+    token.signature = jwtFields[3]
+    token.signaturedecoded = base64.decode(token.signature)
+
+    log('API token URL param: ' .. apiTokenParam)
     log('Decoded JWT header: ' .. dump(token.headerdecoded))
     log('Decoded JWT payload: ' .. dump(token.payloaddecoded))
 
@@ -123,9 +175,14 @@ function jwtverify(txn)
     local pem = config.publicKey
     local issuer = config.issuer
     local audience = config.audience
+    local allowUrlParam = config.allowUrlParam
+    local urlParamName = config.urlParamName
 
     -- 1. Decode and parse the JWT
-    local token = decodeJwt(txn.sf:req_hdr("Authorization"))
+    local token = decodeJwtAuthHeader(txn.sf:req_hdr("Authorization"))
+    if token == nil and allowUrlParam == true and urlParamName ~= nil then
+      token = decodeJwtUrlParam(txn.sf:url_param(urlParamName))
+    end
 
     if token == nil then
       log("Token could not be decoded.")
@@ -190,10 +247,14 @@ core.register_init(function()
   config.publicKey = pem
   config.issuer = os.getenv("OAUTH_ISSUER")
   config.audience = os.getenv("OAUTH_AUDIENCE")
+  config.allowUrlParam = toboolean(os.getenv("OAUTH_ALLOW_URL_PARAM"))
+  config.urlParamName = os.getenv("OAUTH_URL_PARAM_NAME")
 
   log("PublicKeyPath: " .. publicKeyPath)
   log("Issuer: " .. (config.issuer or "<none>"))
   log("Audience: " .. (config.audience or "<none>"))
+  log("AllowUrlParam: " .. (tostring(config.allowUrlParam) or "<none>"))
+  log("UrlParamName: " .. (config.urlParamName or "<none>"))
 end)
 
 -- Called on a request.

@@ -9,6 +9,8 @@ rhel_based=false
 debian_based=false
 lua_installed=false
 lua_dep_dir=/usr/local/share/lua/5.3/
+lua_jwt_git_url=https://github.com/haproxytech/haproxy-lua-jwt/archive/master.zip
+lua_jwt_git_branch=master
 
 if [ -f /etc/redhat-release ]; then
     rhel_based=true
@@ -102,8 +104,8 @@ install_deb_lua() {
 download_luajwt() {
     printf "\r[+] Downloading haproxy-lua-jwt\n"
     cd $SOURCE_DIR
-    curl -sLO https://github.com/haproxytech/haproxy-lua-jwt/archive/master.zip
-    unzip -qo master.zip
+    curl -sLO $lua_jwt_git_url
+    unzip -qo $lua_jwt_git_branch.zip
 }
 
 download_luajwt_deps() {
@@ -123,7 +125,7 @@ install_luajwt() {
     if [ ! -e $lua_dep_dir ]; then
         mkdir -p $lua_dep_dir;
     fi;
-    mv $SOURCE_DIR/haproxy-lua-jwt-master/lib/*.lua $lua_dep_dir 
+    mv $SOURCE_DIR/haproxy-lua-jwt-$lua_jwt_git_branch/lib/*.lua $lua_dep_dir 
 }
 
 install_luajwt_deps() {
@@ -152,6 +154,20 @@ case $1 in
     *)
     print_help
 esac
+
+if [ -n "$2" ]; then
+    printf "\r[+] Installing haproxy-lua-jwt from git url: $2\n"
+    lua_jwt_git_url=$2
+else
+    printf "\r[+] Installing haproxy-lua-jwt from git url: $lua_jwt_git_url\n"
+fi
+
+if [ -n "$3" ]; then
+    printf "\r[+] Installing haproxy-lua-jwt from git branch: $3\n"
+    lua_jwt_git_branch=$3
+else
+    printf "\r[+] Installing haproxy-lua-jwt from git branch: $lua_jwt_git_branch\n"
+fi
 
 if $install_haproxy_var; then
     # Install HAProxy
