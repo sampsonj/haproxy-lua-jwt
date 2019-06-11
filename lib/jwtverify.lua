@@ -92,6 +92,8 @@ local function decodeJwtAuthHeader(authorizationHeader)
     end
 
     local token = {}
+    token.jwt = headerFields[2] .. "." .. headerFields[3] .. "." .. headerFields[4]
+
     token.header = headerFields[2]
     token.headerdecoded = json.decode(base64.decode(token.header))
 
@@ -102,6 +104,7 @@ local function decodeJwtAuthHeader(authorizationHeader)
     token.signaturedecoded = base64.decode(token.signature)
 
     log('Authorization header: ' .. authorizationHeader)
+    log('JWT: ' ..  token.jwt)
     log('Decoded JWT header: ' .. dump(token.headerdecoded))
     log('Decoded JWT payload: ' .. dump(token.payloaddecoded))
 
@@ -123,6 +126,8 @@ local function decodeJwtUrlParam(apiTokenParam)
     end
 
     local token = {}
+    token.jwt = apiTokenParam
+
     token.header = jwtFields[1]
     token.headerdecoded = json.decode(base64.decode(token.header))
 
@@ -219,14 +224,21 @@ function jwtverify(txn)
       goto out
     end
 
-    -- 7. Add scopes to variable
+    -- 7. Add full JWT value to variable
+    if token.jwt ~= nil then
+      txn.set_var(txn, "txn.jwt", token.jwt)
+    else
+      txn.set_var(txn, "txn.jwt", "")
+    end
+
+    -- 8. Add scopes to variable
     if token.payloaddecoded.scope ~= nil then
       txn.set_var(txn, "txn.oauth_scopes", token.payloaddecoded.scope)
     else
       txn.set_var(txn, "txn.oauth_scopes", "")
     end
 
-    -- 8. Set authorized variable
+    -- 9. Set authorized variable
     log("req.authorized = true")
     txn.set_var(txn, "txn.authorized", true)
 
